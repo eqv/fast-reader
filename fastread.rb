@@ -1,5 +1,5 @@
 
-sleep_time = 60/700.0
+sleep_time = 60/600.0
 
 def hl_index(word)
   return case word.length
