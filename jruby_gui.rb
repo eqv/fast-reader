@@ -1,14 +1,4 @@
-#!/usr/local/bin/jruby
-
-# ZetCode JRuby Swing tutorial
-# 
-# In this example we draw lyrics of a 
-# song on the window panel.
-# 
-# author: Jan Bodnar
-# website: www.zetcode.com
-# last modified: December 2010
-
+#encoding: utf-8
 
 include Java
 
@@ -16,28 +6,65 @@ import java.awt.Color
 import java.awt.Font
 import java.awt.RenderingHints
 import java.awt.geom.Ellipse2D
+import java.awt.event.ActionListener
 import javax.swing.JFrame
 import javax.swing.JPanel
+import javax.swing.KeyStroke
+import javax.swing.AbstractAction
 
-Thread.abort_on_exception = true
+class PauseAction < AbstractAction
+  def initialize(fastreader)
+    super()
+    @fastreader = fastreader
+  end
+  def actionPerformed(e)
+    @fastreader.pause = !@fastreader.pause
+  end
+end
 
-class Canvas < JPanel
+class RewindAction < AbstractAction
+  def initialize(fastreader)
+    super()
+    @fastreader = fastreader
+  end
+  def actionPerformed(e)
+    @fastreader.wordcounter -= 2
+    while @fastreader.wordcounter > 0 && @fastreader.get_word !~ /\.$/
+      @fastreader.wordcounter -= 1
+    end
+    @fastreader.wordcounter += 1
+  end
+end
+
+class FastReader < JPanel
+    attr_accessor :pause, :wordcounter
+
+    def get_word
+      @words[@wordcounter]
+    end
 
     def initialize(*args)
         super(*args)
         @wordcounter = 0
-        @words = File.read("das_urteil.txt").lines.map{|x| x.split(/\s+/)}.flatten
-        @word = "Get Ready"
-
-        Thread.new do
-          sleep_time = 60.0/600
+        @words = File.read(ARGV[0]).lines.map{|x| x.split(/\s+/)}.flatten
+        @word = "Press Enter"
+        @wpm = 600
+        self.getInputMap().put(KeyStroke.getKeyStroke("ENTER"), "pause")
+        self.getActionMap().put("pause", PauseAction.new(self))
+        self.getInputMap().put(KeyStroke.getKeyStroke("SPACE"), "replay")
+        self.getActionMap().put("replay", RewindAction.new(self))
+        @pause = true
+        @runner = Thread.new do
           sentence_length = 0
-          sleep 5
           loop do
-            @word = @words[@wordcounter % @words.length]
+            if @pause
+              sleep 0.1
+              next
+            end
+            @word = get_word
             self.repaint
             @wordcounter += 1
-            sleep sleep_time*time_factor(@word, sentence_length)
+            sleep (60.0/@wpm)*time_factor(@word, sentence_length)
             if @word =~ /\./
               sentence_length = 0
             else
@@ -49,7 +76,7 @@ class Canvas < JPanel
 
     def paintComponent g
         super
-        self.drawLyrics g
+        self.drawWord g
     end
 
     def hl_index(word)
@@ -61,15 +88,15 @@ class Canvas < JPanel
         else 4
       end
     end
-    
+
     def time_factor(word, sentence_length)
       mult = 1
       mult *= 1.6 if word.length > 13
       mult *= 1.3 if word.length > 7 && word.length <=13
       mult *= 1.3 if word.length < 4
-      mult *= 1.3 unless word =~ /^[a-z]+$/i
-      mult *= 1.1 if word =~ /^[A-Z]/
-      if word =~/[,;:."?]/
+      mult *= 1.3 unless word =~ /^[a-zäüößÄÜÖß]+$/i
+      mult *= 1.1 if word =~ /^[A-Z]+$/
+      if word =~/[;:."?!]/
         mult *= 3.3 if sentence_length > 22
         mult *= 2.2 if sentence_length > 11 && sentence_length <= 22
       end
@@ -77,12 +104,12 @@ class Canvas < JPanel
       return mult
     end
 
-    def drawLyrics g
+    def drawWord g
         rh = RenderingHints.new RenderingHints::KEY_ANTIALIASING, RenderingHints::VALUE_ANTIALIAS_ON
         rh.put RenderingHints::KEY_RENDERING, RenderingHints::VALUE_RENDER_QUALITY
         g.setRenderingHints rh
 
-        g.setFont Font.new "Sanserif", Font::BOLD, 20
+        g.setFont Font.new "Ubuntu Mono", Font::BOLD, 26
         metrics = g.getFontMetrics
         string  = @word
         i = hl_index(string)
@@ -100,18 +127,18 @@ class Canvas < JPanel
 end
 
 class Example < JFrame
-  
+
     def initialize
         super "FastReader"
         initUI
     end
-      
+
     def initUI
-        canvas = Canvas.new
-        self.getContentPane.add canvas
-        
+        reader = FastReader.new
+        self.getContentPane.add reader
+
         self.setDefaultCloseOperation JFrame::EXIT_ON_CLOSE
-        self.setSize 400, 250
+        self.setSize 400, 60
         self.setLocationRelativeTo nil
         self.setVisible true
     end
